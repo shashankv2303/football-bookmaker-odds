@@ -1,0 +1,41 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Team 6 write-up</title>
+<style>@page{size:A4;margin:14mm}body{font:10pt/1.32 Helvetica,Arial,sans-serif;color:#111}
+h1{font-size:15pt;margin:0 0 2pt}h2{font-size:11pt;margin:8pt 0 2pt;border-bottom:1px solid #999}
+p{margin:2pt 0}table{border-collapse:collapse;font-size:9pt;margin:3pt 0}td,th{border:1px solid #888;padding:1.5pt 6pt;text-align:right}
+td:first-child,th:first-child{text-align:left}img{width:100%}.s{font-size:9pt;color:#444}</style></head><body>
+<h1>The Bank is Open: Can Machine Learning Beat the Bookmaker?</h1>
+<p class="s">UE24CS352A Mini-Project, Team 6: Shashank Vinayak (PES1UG24CS435), Shubashitha G (PES1UG24CS450)</p>
+<h2>1. Problem statement</h2>
+<p>Bucquet &amp; Sarukkai (Stanford CS229, 2018) predict the total points in an NBA game and compare against the sportsbook's Over/Under line.
+We replicate their pipeline (Random Forest baseline, SVD collaborative filtering, neural network, LSTM) on
+English Premier League football, where results and bookmaker odds are freely available. Task: predict total goals in a match and ask whether the
+prediction is as good as the bookmaker's Over/Under 2.5 market.</p>
+<h2>2. Dataset</h2>
+<p>football-data.co.uk, 11 EPL seasons (2014/15&ndash;2024/25), 4,180 matches: goals, shots, shots on target, corners and market-average Over/Under 2.5 odds.
+After requiring 5 prior matches for both teams, 4,031 remain. Time-ordered split like the paper: train 2014/15&ndash;2022/23 (3,283), validation 2023/24 (374), test 2024/25 (374).
+Odds are never used as features; they are the benchmark only.</p>
+<h2>3. Approach</h2>
+<p><b>Features</b> (32, only from earlier matches, verified by a leakage test): for each team the last 3 and 5 matches (goals for/against, shots, shots on target, corners),
+season-to-date averages (the paper's opponent-strength idea) and days of rest (fatigue). The LSTM instead reads each team's last 5 matches as a sequence.
+<b>Models:</b> Random Forest; SVD collaborative filtering (home&times;away goals matrix, low-rank hard-impute, rebuilt per match from prior matches); fully connected net (32-32-16-1, dropout, weight decay, early stopping);
+LSTM (one per team, concatenated into a linear head). Hyperparameters were chosen by small grids on the validation season only.
+<b>Benchmark:</b> the bookmaker's margin-free P(over 2.5) is converted into an implied expected-goals value (Poisson), so MSE is comparable; model predictions are converted to P(over 2.5) the same way.</p>
+<h2>4. Implementation overview</h2>
+<p>Python, pandas, scikit-learn, PyTorch. <code>src/data.py</code> (download/clean), <code>src/features.py</code> (leakage-safe features and sequences), <code>src/models/</code> (four models),
+<code>src/train.py</code> (training and tuning), <code>src/evaluate.py</code> (MSE, MAE, Over/Under accuracy, Brier score, flat-stake betting ROI, figures),
+<code>app/demo.py</code> (Streamlit demo: pick a test match, see every model's prediction against the bookmaker line), <code>tests/test_leakage.py</code>.</p>
+<h2>5. Results (test season 2024/25, 374 matches)</h2>
+<table><tr><th>Model</th><th>MSE</th><th>MAE</th><th>O/U 2.5 acc.</th><th>Brier</th></tr>
+<tr><td><b>Bookmaker</b></td><td>2.614</td><td>1.294</td><td>57.5%</td><td>0.242</td></tr>
+<tr><td>Train mean</td><td>2.645</td><td>1.292</td><td>57.0%</td><td>0.248</td></tr>
+<tr><td>Random Forest</td><td>2.689</td><td>1.293</td><td>54.5%</td><td>0.249</td></tr>
+<tr><td>LSTM</td><td>2.691</td><td>1.305</td><td>56.4%</td><td>0.249</td></tr>
+<tr><td>Neural network</td><td>2.764</td><td>1.318</td><td>53.2%</td><td>0.251</td></tr>
+<tr><td>SVD</td><td>3.388</td><td>1.488</td><td>54.5%</td><td>0.271</td></tr></table>
+<img src="../results/model_comparison.png">
+<h2>6. Conclusions</h2>
+<p>No model beats the bookmaker on MSE or Brier score, and none is clearly better than predicting the historical average; flat-stake betting ROI is around zero or negative.
+This mirrors the paper (neural net MSE 369.8 vs sportsbook 320.7; 51.5% correct side). Goal counts are low and very noisy, so rolling form statistics carry little signal, and the bookmaker
+already prices in information we lack (injuries, line-ups, team strength). With 374 test matches the accuracy standard error is about &plusmn;2.6 points, so differences of 1&ndash;3 points are noise.
+The SVD model suffers from sparse pairwise data. Future work: team-strength ratings (Elo/Dixon-Coles), expected-goals data, multi-season test sets.</p>
+</body></html>
